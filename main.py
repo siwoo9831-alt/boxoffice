@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 import pytz
-import urllib.parse # 네이버 검색 URL을 안전하게 만들기 위해 추가
+import urllib.parse
 
 # 페이지 기본 설정
 st.set_page_config(page_title="일별 박스오피스", page_icon="🎬", layout="wide")
@@ -84,25 +84,29 @@ def format_movie_name(row):
         return f"{name} 🏆"
     return name
 
-# 네이버 검색 URL을 만들어주는 함수
+# 네이버 검색 URL 
 def make_naver_link(movie_name):
-    # '영화명 + 영화' 로 검색어를 만들어 정확도를 높임 (예: 파묘 영화)
     query = urllib.parse.quote(movie_name + " 영화")
     return f"https://search.naver.com/search.naver?query={query}"
 
+# 유튜브 예고편 검색 URL 추가
+def make_youtube_link(movie_name):
+    query = urllib.parse.quote(movie_name + " 예고편")
+    return f"https://www.youtube.com/results?search_query={query}"
+
 df['순위 증감'] = df['rankInten'].apply(format_rank_inten)
 df['영화명(포맷)'] = df.apply(format_movie_name, axis=1)
-# 검색 URL 컬럼 추가
 df['네이버 검색'] = df['movieNm'].apply(make_naver_link) 
+df['유튜브 검색'] = df['movieNm'].apply(make_youtube_link) # 유튜브 컬럼 추가
 
-# 화면에 보여줄 컬럼 선택 (네이버 검색 포함)
-display_df = df[['rank', '순위 증감', '영화명(포맷)', '네이버 검색', 'openDt', 'audiCnt', 'audiAcc', 'scrnCnt']].copy()
-display_df.columns = ['순위', '순위 증감', '영화명', '네이버 검색', '개봉일', '관객수', '누적관객', '스크린수']
+display_df = df[['rank', '순위 증감', '영화명(포맷)', '네이버 검색', '유튜브 검색', 'openDt', 'audiCnt', 'audiAcc', 'scrnCnt']].copy()
+display_df.columns = ['순위', '순위 증감', '영화명', '네이버 검색', '유튜브 검색', '개봉일', '관객수', '누적관객', '스크린수']
 display_df = display_df.set_index('순위')
 
 
 # 5. 화면에 그리기
 
+# --- 1위 영화 하이라이트 ---
 st.subheader(f"🥇 {selected_date.strftime('%Y년 %m월 %d일')} 1위 영화")
 top1_movie = df.iloc[0] 
 st.markdown(f"### **{top1_movie['영화명(포맷)']}**")
@@ -117,24 +121,38 @@ with col3:
 
 st.divider()
 
+# --- 관객수 TOP 5 막대그래프 ---
 st.subheader("📊 관객수 TOP 5")
 top5_df = df.head(5)
 st.bar_chart(data=top5_df, x='영화명(포맷)', y='audiCnt')
 
+# --- 그래프 하단 검색 버튼 추가 ---
+st.markdown("##### 🔍 TOP 5 영화 정보 및 예고편 검색")
+cols = st.columns(5)
+for i, (index, row) in enumerate(top5_df.iterrows()):
+    with cols[i]:
+        # 영화 이름을 위에 적고, 아래에 버튼 2개를 세로로 배치합니다.
+        st.markdown(f"**{row['영화명']}**")
+        st.link_button("네이버", row['네이버 검색'], use_container_width=True)
+        st.link_button("유튜브", row['유튜브 검색'], use_container_width=True)
+
 st.divider()
 
+# --- 전체 순위(1~10위) 보기 창 (Expander) ---
 st.subheader("📋 전체 박스오피스")
 with st.expander("👉 1위부터 10위까지 전체 순위표 열어보기", expanded=False):
-    st.caption("※ 영화진흥위원회 API 정책상 매일 상위 10편의 데이터만 제공됩니다.")
-    
-    # st.column_config를 사용해 URL 텍스트를 클릭 가능한 예쁜 링크로 바꿈
+    st.caption("※ 표 안의 링크를 클릭해도 검색할 수 있습니다.")
     st.dataframe(
         display_df, 
         use_container_width=True,
         column_config={
             "네이버 검색": st.column_config.LinkColumn(
                 "네이버 검색",
-                display_text="🔍 검색하기" # 화면에는 주소 대신 이 글자가 보임
+                display_text="🔍 네이버"
+            ),
+            "유튜브 검색": st.column_config.LinkColumn(
+                "유튜브 검색",
+                display_text="▶️ 유튜브"
             )
         }
     )
